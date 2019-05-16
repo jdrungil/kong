@@ -1,6 +1,7 @@
 local BasePlugin   = require "kong.plugins.base_plugin"
 local constants    = require "kong.constants"
 local reports      = require "kong.reports"
+local utils        = require "kong.tools.utils"
 
 local kong         = kong
 
@@ -14,6 +15,7 @@ local COMBO_SC     = 6
 local COMBO_RSC    = 7
 local COMBO_GLOBAL = 0
 
+local TTL_ZERO = { ttl = 0 }
 
 local MUST_LOAD_CONFIGURATION_IN_PHASES = {
   preread     = true,
@@ -264,6 +266,21 @@ local function iterate(self, ctx, phase)
 end
 
 
+local function get_version()
+  if not kong.cache then
+    return "init"
+  end
+
+  local version, err = kong.cache:get("plugins_iterator:version",
+                                      TTL_ZERO, utils.uuid)
+  if err then
+    return nil, "could not get plugins iterator version:" .. err
+  end
+
+  return version
+end
+
+
 function PluginsIterator.new(version)
   if not version then
     error("version must be given", 2)
@@ -292,9 +309,19 @@ function PluginsIterator.new(version)
     }
   end
 
+  local phase = ngx.get_phase()
+
+  local counter = 0
   for plugin, err in kong.db.plugins:each(1000) do
     if err then
       return nil, err
+    end
+
+    if counter % 1000 and phase ~= "init_worker" then
+      local current_version = get_version()
+      if version ~= current_version then
+        return nil, "plugins_iterator version updated while rebuilding"
+      end
     end
 
     if should_process_plugin(plugin) then
@@ -307,6 +334,7 @@ function PluginsIterator.new(version)
       combos[plugin.name] = combos[plugin.name] or {}
       combos[plugin.name][combo_key] = true
     end
+    counter = counter + 1
   end
 
   local phase_handler

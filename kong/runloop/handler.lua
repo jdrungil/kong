@@ -760,6 +760,7 @@ return {
   set_init_versions_in_cache = set_init_versions_in_cache,
   -- exported for unit-testing purposes only
   _set_check_router_rebuild = _set_check_router_rebuild,
+  _update_lua_mem = update_lua_mem,
 
   init_worker = {
     before = function()

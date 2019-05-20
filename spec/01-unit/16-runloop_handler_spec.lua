@@ -162,5 +162,22 @@ describe("runloop handler", function()
       assert.equal(1, semaphores[2].value)
     end)
 
+    it("does not call rebuild_router if async_rebuilds is on", function()
+      setup_it_block()
+
+      kong.configuration.async_rebuilds = true
+
+      local handler = require "kong.runloop.handler"
+
+      local rebuild_router_spy = spy.new(function() end)
+      handler._set_rebuild_router(rebuild_router_spy)
+
+      handler.init_worker.before()
+
+      assert.error(function() handler.access.before({}) end, EXPECTED_ROUTER_ERROR)
+
+      assert.spy(rebuild_router_spy).was_called(0)
+    end)
+
   end)
 end)

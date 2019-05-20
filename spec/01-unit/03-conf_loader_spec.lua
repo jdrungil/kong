@@ -409,6 +409,11 @@ describe("Configuration loader", function()
       }))
       assert.True(conf.cassandra_ssl)
       assert.True(conf.pg_ssl)
+
+      local conf = assert(conf_loader(nil, {
+        async_rebuilds = "on",
+      }))
+      assert.True(conf.async_rebuilds)
     end)
     it("infer arrays (comma-separated strings)", function()
       local conf = assert(conf_loader())

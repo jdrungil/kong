@@ -495,10 +495,12 @@ do
 
 
   get_updated_plugins_iterator = function()
-    local ok, err = rebuild_plugins_iterator(REBUILD_TIMEOUT)
-    if not ok then
-      -- If an error happens while updating, log it and return non-updated version
-      log(CRIT, "error while updating plugins iterator: ", err)
+    if not kong.configuration.async_rebuilds then
+      local ok, err = rebuild_plugins_iterator(REBUILD_TIMEOUT)
+      if not ok then
+        -- If an error happens while updating, log it and return non-updated version
+        log(CRIT, "error while updating plugins iterator: ", err)
+      end
     end
     return plugins_iterator
   end
@@ -714,10 +716,12 @@ do
 
 
   get_updated_router = function()
-    local ok, err = rebuild_router(REBUILD_TIMEOUT)
-    if not ok then
-      -- If an error happens while updating, log it and return non-updated version
-      log(CRIT, "error while updating router(reason: ", err, ")")
+    if not kong.configuration.async_rebuilds then
+      local ok, err = rebuild_router(REBUILD_TIMEOUT)
+      if not ok then
+        -- If an error happens while updating, log it and return non-updated version
+        log(CRIT, "error while updating router(reason: ", err, ")")
+      end
     end
     return router
   end

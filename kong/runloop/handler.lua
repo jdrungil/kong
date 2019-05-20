@@ -63,7 +63,7 @@ local CACHE_ROUTER_OPTS = { ttl = 0 }
 local SUBSYSTEMS = constants.PROTOCOLS_WITH_SUBSYSTEM
 local EMPTY_T = {}
 local TTL_ZERO = { ttl = 0 }
-local REBUILD_TIMEOUT
+--local REBUILD_TIMEOUT
 
 
 local get_plugins_iterator, get_updated_plugins_iterator
@@ -495,11 +495,13 @@ do
 
 
   get_updated_plugins_iterator = function()
+    --[[
     local ok, err = rebuild_plugins_iterator(REBUILD_TIMEOUT)
     if not ok then
       -- If an error happens while updating, log it and return non-updated version
       log(CRIT, "error while updating plugins iterator: ", err)
     end
+    ]]
     return plugins_iterator
   end
 
@@ -858,6 +860,7 @@ return {
         end
       end)
 
+      --[[
       do
         REBUILD_TIMEOUT = 60
 
@@ -869,6 +872,7 @@ return {
           REBUILD_TIMEOUT = kong.configuration.pg_timeout / 1000
         end
       end
+      ]]
 
     end
   },
@@ -894,11 +898,13 @@ return {
   },
   preread = {
     before = function(ctx)
+      --[[
       local ok, err = rebuild_router(REBUILD_TIMEOUT)
       if not ok then
         log(ERR, "no router to route connection (reason: " .. err .. ")")
         return exit(500)
       end
+      ]]
 
       local router = get_router()
 
@@ -993,12 +999,14 @@ return {
     before = function(ctx)
       -- router for Routes/Services
 
+      --[[
       local ok, err = rebuild_router(REBUILD_TIMEOUT)
 
       if not ok then
         kong.log.err("no router to route request (reason: " .. tostring(err) ..  ")")
         return kong.response.exit(500, { message  = "An unexpected error occurred" })
       end
+      ]]
 
       local router = get_router()
 

@@ -26,6 +26,7 @@ return {
                      custom_validator = validate_file,
           }, },
           { reopen = { type = "boolean", default = false }, },
+          { serializer = { type = "string", default = "default" } },
     }, }, },
   }
 }

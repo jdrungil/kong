@@ -20,6 +20,7 @@ local certificate  = require "kong.runloop.certificate"
 local concurrency  = require "kong.concurrency"
 local ngx_re       = require "ngx.re"
 local PluginsIterator = require "kong.runloop.plugins_iterator"
+local log_serializers = require "kong.tools.log_serializers"
 
 
 local kong         = kong
@@ -350,6 +351,47 @@ local function register_events()
       log(ERR, "failed broadcasting upstream ", operation, " to workers: ", err)
     end
   end)
+
+
+  -- log serializer management
+
+
+  worker_events.register(function(data)
+    ngx.log(ngx.WARN, "processing entry")
+
+    log_serializers.clear_serializer(data.entity.name)
+    worker_events.post("log_serializers", "clear", data.entity.name)
+
+    if data.old_entity then
+      log_serializers.clear_serializer(data.old_entity.name)
+      worker_events.post("log_serializers", "clear", data.old_entity.name)
+    end
+
+    local packet = data.entity.name
+    if data.old_entity then
+      packet = packet .. ":" .. data.old_entity.name
+    end
+
+    local ok, err = cluster_events:broadcast("log_serializers", packet)
+    if not ok then
+      log(ERR, "failed broadcasting log_serializers clear to workers: ", err)
+    end
+  end, "crud", "log_serializers")
+
+
+  cluster_events:subscribe("log_serializers", function(data)
+    for _, name in ipairs(utils.split(data, ":")) do
+      local _, err = worker_events.post("log_serializers", "clear", name)
+      if err then
+        log(ERR, "failed broadcasting log_serializers clear to workers: ", err)
+      end
+    end
+  end)
+
+
+  worker_events.register(function(name)
+    log_serializers.clear_serializer(name)
+  end, "log_serializers", "clear")
 
 
   -- declarative config updates

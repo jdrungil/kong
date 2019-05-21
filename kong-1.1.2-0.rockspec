@@ -120,6 +120,7 @@ build = {
     ["kong.tools.printable"] = "kong/tools/printable.lua",
     ["kong.tools.timestamp"] = "kong/tools/timestamp.lua",
     ["kong.tools.batch_queue"] = "kong/tools/batch_queue.lua",
+    ["kong.tools.log_serializers"] = "kong/tools/log_serializers.lua",
 
     ["kong.runloop.handler"] = "kong/runloop/handler.lua",
     ["kong.runloop.certificate"] = "kong/runloop/certificate.lua",
@@ -148,6 +149,7 @@ build = {
     ["kong.db.schema.entities.targets"] = "kong/db/schema/entities/targets.lua",
     ["kong.db.schema.entities.plugins"] = "kong/db/schema/entities/plugins.lua",
     ["kong.db.schema.entities.tags"] = "kong/db/schema/entities/tags.lua",
+    ["kong.db.schema.entities.log_serializers"] = "kong/db/schema/entities/log_serializers.lua",
     ["kong.db.schema.others.migrations"] = "kong/db/schema/others/migrations.lua",
     ["kong.db.schema.others.declarative_config"] = "kong/db/schema/others/declarative_config.lua",
     ["kong.db.schema.entity"] = "kong/db/schema/entity.lua",

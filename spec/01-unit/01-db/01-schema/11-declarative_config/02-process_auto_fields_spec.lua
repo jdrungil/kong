@@ -166,6 +166,7 @@ describe("declarative config: process_auto_fields", function()
                 queue_size = 1,
                 retry_count = 10,
                 timeout = 10000,
+                serializer = "default",
               }
             },
           }
@@ -217,6 +218,7 @@ describe("declarative config: process_auto_fields", function()
                 queue_size = 1,
                 retry_count = 10,
                 timeout = 10000,
+                serializer = "default",
               }
             },
           }
@@ -325,6 +327,7 @@ describe("declarative config: process_auto_fields", function()
                       queue_size = 1,
                       retry_count = 10,
                       timeout = 10000,
+                      serializer = "default",
                     }
                   },
                 }
@@ -359,6 +362,7 @@ describe("declarative config: process_auto_fields", function()
                       keepalive = 60000,
                       timeout = 10000,
                       tls = false,
+                      serializer = "default",
                     }
                   },
                 }
@@ -607,6 +611,7 @@ describe("declarative config: process_auto_fields", function()
                           queue_size = 1,
                           retry_count = 10,
                           timeout = 10000,
+                          serializer = "default",
                         }
                       }
                     }
@@ -652,6 +657,7 @@ describe("declarative config: process_auto_fields", function()
                           keepalive = 60000,
                           timeout = 10000,
                           tls = false,
+                          serializer = "default",
                         }
                       }
                     }

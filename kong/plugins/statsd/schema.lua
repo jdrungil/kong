@@ -79,6 +79,7 @@ return {
           { host = typedefs.host({ default = "localhost" }), },
           { port = typedefs.port({ default = 8125 }), },
           { prefix = { type = "string", default = "kong" }, },
+          { serializer = { type = "string", default = "default" } },
           { metrics = {
               type = "array",
               default = DEFAULT_METRICS,

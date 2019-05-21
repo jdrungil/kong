@@ -10,6 +10,7 @@ return {
           { host = typedefs.host({ required = true }) },
           { port = typedefs.port({ required = true }) },
           { timeout = { type = "number", default = 10000 }, },
+          { serializer = { type = "string", default = "default" } },
     }, }, },
   },
 }

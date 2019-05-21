@@ -387,17 +387,50 @@ do
   end
 
 
+  -- invokes callback, if it fails it returns with db_ok and ok set to true
+  -- if it fails, it trys to call db:connect and try the callback again
+  -- @returns db_ok true if no reconnect was needed, or reconnect successful
+  -- @returns db_err error string when db_ok is false
+  -- @returns ok true if callback was successful the first or second attempt
+  -- @returns err error string when ok is false
+  local rebuild_with_db_connect = function(name, callback, version)
+    local db_ok, db_err = true, nil
+    local pok, ok, err = pcall(callback, version)
+    if not pok or not ok then
+      db_ok, db_err = kong.db:connect()
+      if db_ok then
+        log(WARN, "rebuidling ", name, " failed:", ok or err,
+                  ". Attempting database reconnection")
+        pok, ok, err = pcall(callback, version)
+        kong.db:setkeepalive()
+      else
+        kong.db:close()
+      end
+    end
+
+    return db_ok, db_err, (pok and ok), (ok or err)
+  end
+
+
   local function rebuild_timer(premature, name, callback, version, semaphore)
     if premature then
       semaphore:post()
       return
     end
 
-    local pok, ok, err = pcall(callback, version)
-    if not pok or not ok then
-      log(CRIT, "could not rebuild ", name, " asynchronously:", ok or err)
-    end
+    local db_ok, db_err, ok, err = rebuild_with_db_connect(name, callback, version)
+
     semaphore:post()
+
+    if not db_ok then
+      log(CRIT, "could not connect to the database while rebuilding ",
+          name, " asynchronously:", db_err)
+    end
+
+    if not ok then
+      log(CRIT, "could not rebuild ", name,
+          " asynchronously after database reconnection:", err)
+    end
   end
 
 
@@ -436,11 +469,19 @@ do
     end
 
     if timeout > 0 then
-      local pok, ok, err = pcall(callback, version)
+      local db_ok, db_err, ok, err = rebuild_with_db_connect(name, callback, version)
       semaphore:post()
-      if not pok or not ok then
-        return nil, "could not rebuild ", name, " synchronously: " .. tostring(ok or err)
+      if not db_ok then
+        return nil, "could not connect to the database while rebuilding " ..
+                    name .. " synchronously:" .. tostring(db_err)
       end
+
+      if not ok then
+        return nil, "could not rebuild " .. name ..
+                    " synchronously after database reconnection: " ..
+                    tostring(err)
+      end
+
       return ok, err
     end
 

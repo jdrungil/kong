@@ -47,6 +47,11 @@ function OffConnector:query()
 end
 
 
+function OffConnector:setkeepalive()
+  return true
+end
+
+
 function OffConnector:schema_migrations(subsystems)
   local rows = {}
   for _, subsystem in ipairs(subsystems) do

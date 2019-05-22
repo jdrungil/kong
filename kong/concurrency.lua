@@ -98,6 +98,8 @@ function concurrency.with_coroutine_mutex(opts, fn)
 
     if opts.on_timeout == "run_unlocked" then
       kong.log.warn("bypassing ", opts.name, " lock: timeout")
+    elseif opts.on_timeout == "return_true" then
+      return true
     else
       return nil, "timeout acquiring " .. opts.name .. " lock"
     end

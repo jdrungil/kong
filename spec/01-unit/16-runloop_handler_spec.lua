@@ -5,12 +5,18 @@ local function setup_it_block()
   -- keep track of created semaphores
   local semaphores = {}
 
+  local my_cache = {}
+
   mocker.setup(finally, {
 
     ngx = {
       log = function()
         -- avoid stdout output during test
       end,
+      timer = {
+        at = function() end,
+        every = function() end,
+      }
     },
 
     kong = {
@@ -29,13 +35,15 @@ local function setup_it_block()
       },
       configuration = {
         database = "dummy",
+        async_rebuilds = false,
       },
       db = {
         strategy = "dummy",
       },
       cache = {
-        get = function()
-          return "1"
+        _cache = my_cache,
+        get = function(_, k)
+          return my_cache[k] or "1"
         end
       },
     },
@@ -66,7 +74,7 @@ local function setup_it_block()
         _semaphores = semaphores,
         new = function()
           local s = {
-            value = 1,
+            value = 0,
             wait = function(self, timeout)
               self.value = self.value - 1
               return true
@@ -81,6 +89,8 @@ local function setup_it_block()
           return s
         end,
       }},
+
+      { "kong.concurrency", {} },
 
       { "kong.runloop.handler", {} },
 
@@ -106,33 +116,21 @@ describe("runloop handler", function()
       local semaphores = require "ngx.semaphore"._semaphores
       local handler = require "kong.runloop.handler"
 
-      local rebuild_router_spy = spy.new(function()
+      local update_router_spy = spy.new(function()
         return nil, "error injected by test (feel free to ignore :) )"
       end)
-      local rebuild_plugins_iterator_spy = spy.new(function()
-        return nil, "error injected by test (feel free to ignore :) )"
-      end)
+
+      handler.init_worker.before({})
 
       handler._set_router(mock_router)
-      handler._set_rebuild_router(rebuild_router_spy)
-      handler._set_rebuild_plugins_iterator(rebuild_plugins_iterator_spy)
-
-      handler.init_worker.before()
-
-      assert.equal(1, semaphores[1].value)
-      assert.equal(1, semaphores[2].value)
-
-      assert.spy(rebuild_router_spy).was_called(0)
-      assert.spy(rebuild_plugins_iterator_spy).was_called(0)
+      handler._set_update_router(update_router_spy)
 
       handler.access.before({})
 
-      assert.spy(rebuild_router_spy).was_called(1)
-      assert.spy(rebuild_plugins_iterator_spy).was_called(0)
+      assert.spy(update_router_spy).was_called(1)
 
       -- check semaphore
       assert.equal(1, semaphores[1].value)
-      assert.equal(1, semaphores[2].value)
     end)
 
     it("bypasses router_semaphore upon acquisition timeout", function()
@@ -141,18 +139,19 @@ describe("runloop handler", function()
       local semaphores = require "ngx.semaphore"._semaphores
       local handler = require "kong.runloop.handler"
 
-      local rebuild_router_spy = spy.new(function() end)
-      local rebuild_plugins_iterator_spy = spy.new(function() end)
-      handler._set_rebuild_router(rebuild_router_spy)
-      handler._set_rebuild_plugins_iterator(rebuild_plugins_iterator_spy)
+      handler.init_worker.before()
+
+      local update_router_spy = spy.new(function() end)
+      handler._set_update_router(update_router_spy)
       handler._set_router(mock_router)
 
-      handler.init_worker.before()
-      assert.equal(1, semaphores[1].value)
-      assert.equal(1, semaphores[2].value)
+      -- call it once to create a semaphore
+      handler.access.before({})
 
-      assert.spy(rebuild_router_spy).was_called(0)
-      assert.spy(rebuild_plugins_iterator_spy).was_called(0)
+      assert.spy(update_router_spy).was_called(1)
+
+      -- force a router rebuild
+      handler._set_router_version("old")
 
       -- cause failure to acquire semaphore
       semaphores[1].wait = function()
@@ -162,31 +161,103 @@ describe("runloop handler", function()
       handler.access.before({})
 
       -- was called even if semaphore timed out on acquisition
-      assert.spy(rebuild_router_spy).was_called(1)
-      assert.spy(rebuild_plugins_iterator_spy).was_called(0)
+      assert.spy(update_router_spy).was_called(2)
 
-      -- check semaphores
+      -- check semaphore
       assert.equal(1, semaphores[1].value)
-      assert.equal(1, semaphores[2].value)
     end)
 
-    it("does not call rebuild_router if async_rebuilds is on", function()
+    it("does not call update_router if async_updates is on", function()
       setup_it_block()
 
       kong.configuration.async_rebuilds = true
 
       local handler = require "kong.runloop.handler"
 
-      local rebuild_router_spy = spy.new(function() end)
-      handler._set_rebuild_router(rebuild_router_spy)
+      local update_router_spy = spy.new(function() end)
+      handler._set_update_router(update_router_spy)
       handler._set_router(mock_router)
 
       handler.init_worker.before()
 
       handler.access.before({})
 
-      assert.spy(rebuild_router_spy).was_called(0)
+      assert.spy(update_router_spy).was_called(0)
       assert.equal(mock_router, handler._get_updated_router())
+    end)
+
+    it("calls build_router if router version changes and async_updates is off", function()
+      setup_it_block()
+
+      kong.configuration.async_rebuilds = false
+
+      local handler = require "kong.runloop.handler"
+
+      local latest_router
+
+      local build_router_spy = spy.new(function()
+        handler._set_router_version(kong.cache:get("router:version"))
+        latest_router = {
+          exec = function()
+            return nil
+          end
+        }
+        handler._set_router(latest_router)
+      end)
+      handler._set_build_router(build_router_spy)
+
+      handler.init_worker.before()
+
+      handler.access.before({})
+
+      assert.spy(build_router_spy).was_called(1)
+      assert.equal(latest_router, handler._get_updated_router())
+
+      local saved_router = latest_router
+
+      kong.cache._cache["router:version"] = "new_version"
+
+      handler.access.before({})
+
+      assert.spy(build_router_spy).was_called(2)
+      assert.equal(latest_router, handler._get_updated_router())
+      assert.not_equal(saved_router, latest_router)
+    end)
+
+    it("does not call build_router if router version does not change and async_updates is off", function()
+      setup_it_block()
+
+      kong.configuration.async_rebuilds = false
+
+      local handler = require "kong.runloop.handler"
+
+      local latest_router
+
+      local build_router_spy = spy.new(function()
+        handler._set_router_version(kong.cache:get("router:version"))
+        latest_router = {
+          exec = function()
+            return nil
+          end
+        }
+        handler._set_router(latest_router)
+      end)
+      handler._set_build_router(build_router_spy)
+      handler._set_router(mock_router)
+
+      handler.init_worker.before()
+
+      handler.access.before({})
+
+      assert.spy(build_router_spy).was_called(1)
+      assert.equal(latest_router, handler._get_updated_router())
+
+      local saved_router = latest_router
+
+      handler.access.before({})
+
+      assert.spy(build_router_spy).was_called(1)
+      assert.equal(saved_router, latest_router)
     end)
 
   end)
